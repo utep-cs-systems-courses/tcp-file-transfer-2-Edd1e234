@@ -59,11 +59,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
             # If None the message could not be parsed.
             if None != decoded_messages:
-                print("Made it here.")
                 file_name = decoded_messages[0]
                 file_length = decoded_messages[1]
                 file_message = decoded_messages[2]
-                print(decoded_messages)
 
                 # If file is empty do not create a file.
                 if file_length is 0:
@@ -76,21 +74,15 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 # If file does not exist create a file.
                 FILE_DOES_NOT_EXISTS = False
                 if not os.path.exists(file_name):
-                    print("Hello world")
                     FILE_DOES_NOT_EXISTS = True
                     file = open(file_name, "w")
 
                 amount_of_bytes = 0
                 while True:
-                    # print("Inside while loop")
                     for m in file_message:
-                        print(m)
                         amount_of_bytes += 1
                         if FILE_DOES_NOT_EXISTS:
                             file.write(m)
-                    # print("Made it passed the if.")
-                     #print("amount_of_bytes: ", amount_of_bytes)
-                    # print("file_name", file_length)
 
                     if amount_of_bytes is file_length:
                         break
