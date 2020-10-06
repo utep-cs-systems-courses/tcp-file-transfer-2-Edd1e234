@@ -1,101 +1,57 @@
-#!/usr/bin/env python3
+#! /usr/bin/env python3
 
-import socket, os
+import sys, os
+sys.path.append("../lib")       # for params
+import re, socket, params
 
-HOST = "127.0.0.1"  # Standard loopback interface address (localhost)
-PORT = 65432        # Port to listen on (non-privileged ports are > 1023)
-AMOUNT_OF_BYTES_TO_RECEIVE = 1024
-DEBUG = True
+switchesVarDefaults = (
+    (('-l', '--listenPort') ,'listenPort', 50001),
+    (('-d', '--debug'), "debug", False), # boolean (set if present)
+    (('-?', '--usage'), "usage", False), # boolean (set if present)
+    )
+
+progname = "echoserver"
+paramMap = params.parseParams(switchesVarDefaults)
+
+debug, listenPort = paramMap['debug'], paramMap['listenPort']
+
+if paramMap['usage']:
+    params.usage()
+
+lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # listener socket
+bindAddr = ("127.0.0.1", listenPort)
+lsock.bind(bindAddr)
+lsock.listen(5)
+print("listening on:", bindAddr)
+
+sock, addr = lsock.accept()
+
+print("connection rec'd from", addr)
 
 
-def create_file_name(file_name):
-    list_file = file_name.split(".")
-    return list_file[0] + "_created_by_server." + list_file[1]
+from framedSock import framedSend, framedReceive
 
-def parse_inital_message(message_head):
-    """
-    Expecting message head to be file_name : file_length : message
-    """
-    message_split = message_head.split(" : ")
+# Retrieve file name and contents of file.
+while True:
+    file_name = framedReceive(sock, debug=1)
+    if not file_name:
+        framedSend(sock, "File name failure".encode(), debug=0)
+        continue
 
-    if len(message_split) is not 3:
-        return None
+    message = framedReceive(sock, debug=1)
+    if not message:
+        framedSend(sock, "Had trouble with contents of file".encode(), debug=0)
+        continue
 
-    try:
-        file_name = message_split[0]
-        file_length = int(message_split[1])
-        file_message = message_split[2]
-    except ValueError:
-        return None
-    return file_name, file_length, file_message
+    # Checks if file exists
+    if not os.path.exists(file_name.decode()):
+        file = open("results/" + file_name.decode(), "wb")
+    else:
+        framedSend(sock, "File already found!".encode(), debug=1)
 
-# socket.socket() creates a socket object that supports the context manager
-#   type.
-# The argument passed to socket() specify the address family and socket type.
-# AF_INET is the Internet address family for IPv4.SOCK_STREAM is the socket type
-#   TCP, the protocal that will be used to transport our messages in the
-#   network.
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    # bind() is used to associate the socket with a specific network interface
-    #   and port number.
-    # Host can be a Hostname, IP address, or empty string
-    s.bind((HOST, PORT))
-    s.listen()  # Enables the server to accept connections.
+    # Writes to file.
+    file.write(message)
+    file.close()
+    print("File closed.")
 
-    # Waits for incoming connection.
-    # Returns object representing the connection and a tuble holding the address
-    #   of the client.
-    conn, addr = s.accept()
-    with conn:
-        print("Connected by", addr)
-        while True:
-            # Reads whatever the client is sending.
-            data = conn.recv(AMOUNT_OF_BYTES_TO_RECEIVE)
-
-            # If no data is coming back end program.
-            if not data:
-                break
-            decoded_messages = parse_inital_message(data.decode())
-
-            # If None the message could not be parsed.
-            if None != decoded_messages:
-                file_name = decoded_messages[0]
-                file_length = decoded_messages[1]
-                file_message = decoded_messages[2]
-
-                # If file is empty do not create a file.
-                if file_length is 0:
-                    conn.sendall("Process failed, empty text".encode())
-                    break
-
-                # Create server file name.
-                file_name = create_file_name(file_name)
-
-                # If file does not exist create a file.
-                FILE_DOES_NOT_EXISTS = False
-                if not os.path.exists(file_name):
-                    FILE_DOES_NOT_EXISTS = True
-                    file = open(file_name, "w")
-
-                amount_of_bytes = 0
-                while True:
-                    for m in file_message:
-                        amount_of_bytes += 1
-                        if FILE_DOES_NOT_EXISTS:
-                            file.write(m)
-
-                    if amount_of_bytes is file_length:
-                        break
-
-                    # If file does not exists we still want to clear the payload.
-                    file_message = conn.recv(AMOUNT_OF_BYTES_TO_RECEIVE).decode()
-
-                    # Exit.
-                    if not file_message:
-                        break
-
-                if FILE_DOES_NOT_EXISTS:
-                    file.close()
-                    conn.sendall("Process successful".encode())
-                else:
-                    conn.sendall("File already exists".encode())
+    framedSend(sock, "Success!".encode(), debug=0)
