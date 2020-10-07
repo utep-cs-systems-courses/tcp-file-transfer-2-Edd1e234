@@ -3,6 +3,7 @@
 import sys
 sys.path.append("../lib")       # for params
 import re, socket, params, os
+DEBUG = False
 
 switchesVarDefaults = (
     (('-l', '--listenPort') ,'listenPort', 50001),
@@ -31,25 +32,28 @@ while True:
 
     if not os.fork():
         print("new child process handling connection from", addr)
-        while True:
-            file_name = framedReceive(sock, debug=1)
-            if not file_name:
-                framedSend(sock, "File name failure".encode(), debug=0)
-                continue
-            message = framedReceive(sock, debug=1)
-            if not message:
-                framedSend(sock, "Had trouble with contents of file".encode(), debug=0)
-                continue
 
-            # Checks if file exists
-            if not os.path.exists(file_name.decode()):
-                file = open("results/" + file_name.decode(), "wb")
-            else:
-                framedSend(sock, "File already found!".encode(), debug=1)
+        # Retrive files names.
+        file_name = framedReceive(sock, debug=DEBUG)
+        if not file_name:
+            framedSend(sock, "File name failure".encode(), debug=DEBUG)
+            sys.exit(1)
 
-            # Writes to file.
-            file.write(message)
-            file.close()
-            
-            print("File closed.")
-            framedSend(sock, "Success!".encode(), debug=0)
+        message = framedReceive(sock, debug=DEBUG)
+        if not message:
+            framedSend(sock, "Had trouble with contents of file".encode(), debug=DEBUG)
+            sys.exit(1)
+
+        # Checks if file exists
+        if not os.path.exists("results/" + file_name.decode()):
+            file = open("results/" + file_name.decode(), "w+b")
+        else:
+            framedSend(sock, "File already found!".encode(), debug=DEBUG)
+            sys.exit(1)
+
+        # Writes to file.
+        file.write(message)
+        file.close()
+        print("File closed. Success!")
+        framedSend(sock, "Success!".encode(), debug=DEBUG)
+        sys.exit(1)

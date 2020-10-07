@@ -20,23 +20,25 @@ def framedReceive(sock, debug=0):
                 if debug:
                     print("Groups: ", match.groups())
                 lengthStr, rbuf = match.groups()
-                print("Length: ", lengthStr)
-                print("rbuf: ", rbuf)
                 try:
-                    print("Message length incoming!")
+                    if debug:
+                        print("Message length incoming!")
                     msgLength = int(lengthStr)
-                    print(msgLength)
+
+                    if debug:
+                        print(msgLength)
                 except:
                     if len(rbuf):
                         print("badly formed message length:", lengthStr)
                         return None
                 state = "getPayload"
-            if state == "getPayload":
-                if len(rbuf) >= msgLength:
-                    payload = rbuf[0:msgLength]
-                    rbuf = rbuf[msgLength:]
-                    return payload
+        if state == "getPayload":
+            if len(rbuf) >= msgLength:
+                payload = rbuf[0:msgLength]
+                rbuf = rbuf[msgLength:]
+                return payload
         r = sock.recv(100)
+        len(r)
         rbuf += r
         if len(r) == 0:
             if len(rbuf) != 0:

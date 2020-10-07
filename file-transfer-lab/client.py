@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 
-import socket, sys
+import socket, sys, params, re
 from framedSock import framedReceive
 
 HOST = "127.0.0.1"
 PORT = 50001
 AMOUNT_OF_BYTES_TO_RECEIVE = 1024
-DEBUG = True
-
-
-import re
+DEBUG = 0
+ERROR = "File how no contents"
 
 def create_message(user_input):
+    """
+    Parse user command line arguments. Retrieve new file name. Retrive file contents.
+    """
     if len(user_input) is 0:
         return None
 
@@ -35,6 +36,9 @@ def create_message(user_input):
         message += data
         data = actual_file.read(1024*1024)
 
+    if len(message) is 0:
+        return ERROR, None
+
     return new_file_name, message
 
 
@@ -50,36 +54,63 @@ def framedSend(sock, payload, debug=0):
         nsent = sock.send(msg)
         msg = msg[nsent:]
 
+
+switchesVarDefaults = (
+    (('-s', '--server'), 'server', HOST + ":" + str(PORT)),
+    (('-d', '--debug'), "debug", DEBUG), # boolean (set if present)
+    (('-?', '--usage'), "usage", False), # boolean (set if present)
+    (('-p', '--put'), "put", "local_file:remote_file"),
+    )
+
+progName = "framed_client"
+paramMap = params.parseParams(switchesVarDefaults)
+
+server, usage, debug = paramMap["server"], paramMap["usage"], paramMap["debug"]
+
+if usage:
+    params.usage()
+
+
+try:
+    serverHost, serverPort = re.split(":", server)
+    serverPort = int(serverPort)
+except:
+    print("Can't parse server:port from '%s'" % server)
+    sys.exit(1)
+
+args = paramMap["put"].split(":")
+
+# Checks if args parsed correctly.
+if len(args) is not 2:
+    print("Failed to parse")
+    if DEBUG:
+        print(args)
+    sys.exit(1)
+
+
+if DEBUG:
+    print(args)
+    print(args[0])
+
+
+new_file_name, message = create_message(args[0] + " " + args[1])
+
+if new_file_name is None:
+    print("Failed to read file.")
+    sys.exit(1)
+
+if new_file_name == ERROR:
+    print("File has no contents")
+    sys.exit(1)
+
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    # Change the port number.
-    if len(sys.argv) is 3:
-        if "-p" in sys.argv:
-            PORT = int(sys.argv[2])
-        else:
-            print("Command line arguments do ")
+    s.connect((serverHost, serverPort))
 
-    s.connect((HOST, PORT))
+    framedSend(s, new_file_name.encode(), debug=DEBUG)
+    framedSend(s, message, debug=DEBUG)
 
-    print("Type exit to end connection")
-    while True:
-        user_input = input("Enter file name and remote file name: ")
-
-        if not user_input:
-            continue
-
-        # End program.
-        if user_input == "exit":
-            break
-
-        if DEBUG:
-            print("Sending...")
-
-
-        print("Sending...")
-        new_file_name, message = create_message(user_input)
-        framedSend(s, new_file_name.encode(), debug=1)
-        framedSend(s, message, debug=1)
-
-        if DEBUG:
-            print("Receving...")
-        framedReceive(s, DEBUG)
+    if DEBUG:
+        print("Receving...")
+    payload = framedReceive(s, DEBUG)
+    print(payload.decode())
+    sys.exit(1)
