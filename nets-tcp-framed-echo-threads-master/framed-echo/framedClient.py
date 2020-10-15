@@ -6,12 +6,12 @@ import socket, sys, re
 sys.path.append("../lib")       # for params
 import params
 
-from framedSock import framedSend, framedReceive
+from encapFramedSock import EncapFramedSock
 
 
 switchesVarDefaults = (
     (('-s', '--server'), 'server', "127.0.0.1:50001"),
-    (('-d', '--debug'), "debug", True), # boolean (set if present)
+    (('-d', '--debug'), "debug", False), # boolean (set if present)
     (('-?', '--usage'), "usage", False), # boolean (set if present)
     )
 
@@ -36,18 +36,18 @@ addrFamily = socket.AF_INET
 socktype = socket.SOCK_STREAM
 addrPort = (serverHost, serverPort)
 
-s = socket.socket(addrFamily, socktype)
+sock = socket.socket(addrFamily, socktype)
 
-if s is None:
+if sock is None:
     print('could not open socket')
     sys.exit(1)
 
-s.connect(addrPort)
+sock.connect(addrPort)
 
-print("sending hello world")
-framedSend(s, b"hello world", debug)
-print("received:", framedReceive(s, debug))
+fsock = EncapFramedSock((sock, addrPort))
 
-print("sending hello world")
-framedSend(s, b"hello world", debug)
-print("received:", framedReceive(s, debug))
+for i in range(2):
+    print("sending hello world")
+    fsock.send( b"hello world", debug)
+    print("received:", fsock.receive(debug))
+
